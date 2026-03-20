@@ -1,284 +1,234 @@
 """
-Qualification d'appel SAV — Mini App Streamlit
-================================================
-Destinée à être ouverte par 3CX via URL avec paramètres ?phone=...&name=...
-Génère un résumé structuré prêt à copier-coller dans D-Tools.
+Qualification d'appel SAV — UX Widescreen Optimisée
+===================================================
+Ouverture automatique par 3CX via ?phone=...&name=...
+Saisie rapide en 2 colonnes sans sections cachées.
 """
 
 import streamlit as st
-from datetime import datetime
+import streamlit.components.v1 as components
 
-# ──────────────────────────────────────────────
-# Configuration de la page
-# ──────────────────────────────────────────────
+# ── Config ──────────────────────────────────────
 st.set_page_config(
     page_title="Qualification Appel SAV",
     page_icon="📞",
-    layout="centered",
+    layout="wide",
 )
 
-# ──────────────────────────────────────────────
-# Lecture sécurisée des paramètres URL
-# ──────────────────────────────────────────────
-def get_url_param(key: str, default: str = "") -> str:
-    """Récupère un paramètre URL de manière sûre (gestion liste/str)."""
-    params = st.query_params
-    value = params.get(key, default)
-    if isinstance(value, list):
-        return value[0] if value else default
-    return str(value) if value else default
+# ── Paramètres URL (3CX) ───────────────────────
+def get_param(key: str, default: str = "") -> str:
+    val = st.query_params.get(key, default)
+    if isinstance(val, list):
+        return val[0] if val else default
+    return str(val) if val else default
 
+url_phone = get_param("phone")
+url_name = get_param("name")
 
-url_phone = get_url_param("phone")
-url_name = get_url_param("name")
-
-
-# ──────────────────────────────────────────────
-# En-tête
-# ──────────────────────────────────────────────
+# ── En-tête : Titre & Barre de progression ─────
 st.title("📞 Qualification Appel SAV")
-st.caption("Remplir · Générer · Copier dans D-Tools")
 
-# Badge appelant (données 3CX)
-if url_name or url_phone:
-    phone_display = url_phone if url_phone else "—"
-    name_display = url_name if url_name else "—"
-    st.info(f"👤 **{name_display}**  ·  📱 {phone_display}")
+# ── Barre de progression au sommet ─────────────
+score = 0
+total_champs_requis = 6
+
+val_appelant = st.session_state.get("appelant", url_name)
+val_telephone = st.session_state.get("telephone", url_phone)
+if val_appelant or val_telephone: score += 1
+if st.session_state.get("client"): score += 1
+if st.session_state.get("probleme"): score += 1
+if st.session_state.get("systeme"): score += 1
+if st.session_state.get("acces"): score += 1
+if st.session_state.get("priorite"): score += 1
+
+progression = min(1.0, score / total_champs_requis)
+st.markdown(f"**Fiche Completée à : {int(progression * 100)}%**")
+st.progress(progression)
+st.markdown("---")
+
+# ── Disposition 2 Colonnes ─────────────────────
+col_gauche, col_droite = st.columns([1, 1], gap="large")
+
+with col_gauche:
+    st.subheader("👤 Informations Principales")
+
+    col_id1, col_id2 = st.columns(2)
+    with col_id1:
+        appelant = st.text_input("Nom / Appelant", value=url_name, key="appelant")
+    with col_id2:
+        telephone = st.text_input("Téléphone", value=url_phone, key="telephone")
+
+    col_cli1, col_cli2 = st.columns(2)
+    with col_cli1:
+        client = st.text_input("Client", key="client")
+    with col_cli2:
+        contact = st.text_input("Contact sur place", key="contact")
+
+    site = st.text_input("Site / Adresse", key="site")
+
+    st.markdown("---")
+    
+    # ── Champ problème mis en valeur ───────────────
+    probleme = st.text_area(
+        "📝 Problème (OBLIGATOIRE)",
+        height=150,
+        placeholder="Décrivez clairement ce qui ne fonctionne pas...",
+        key="probleme",
+    )
 
 
-# ──────────────────────────────────────────────
-# Formulaire de saisie
-# ──────────────────────────────────────────────
+with col_droite:
+    st.subheader("⚙️ Qualification de l'intervention")
 
-# --- Section 1 : Appelant ---
-st.subheader("👤 Appelant")
-
-col1, col2 = st.columns(2)
-with col1:
-    appelant = st.text_input("Nom / Appelant", value=url_name, key="appelant")
-with col2:
-    telephone = st.text_input("Téléphone", value=url_phone, key="telephone")
-
-col3, col4 = st.columns(2)
-with col3:
-    client = st.text_input("Client (entreprise)", key="client")
-with col4:
-    contact = st.text_input("Contact sur place", key="contact")
-
-site = st.text_input("Site / Adresse", key="site")
-
-
-# --- Section 2 : Problème ---
-st.subheader("⚠️ Problème")
-
-col5, col6 = st.columns(2)
-with col5:
-    systeme = st.selectbox(
+    # Boutons Système horizontaux au lieu d'un menu
+    systeme = st.radio(
         "Système concerné",
-        ["", "Réseau",  "Audio", "Vidéo", "Contrôle d'accès", "Alarme", "Éclairage", "Wifi", "Autres"],
+        options=["", "Réseau", "Audio", "Vidéo", "Contrôle d'accès", "Alarme", "Éclairage", "Wifi", "Autres"],
+        index=0,
+        horizontal=True,
         key="systeme",
     )
-with col6:
-    zone = st.text_input("Zone / Pièce", key="zone")
 
-col7, col8 = st.columns(2)
-with col7:
-    depuis = st.selectbox(
+    depuis = st.radio(
         "Depuis quand",
-        ["", "Aujourd'hui", "Hier", "Cette semaine", "Plus d'une semaine", "Inconnu"],
+        options=["", "Aujourd'hui", "Hier", "Cette semaine", "Inconnu"],
+        index=0,
+        horizontal=True,
         key="depuis",
     )
-with col8:
-    frequence = st.selectbox(
-        "Fréquence",
-        ["", "Permanent", "Intermittent", "Ponctuel", "Première fois"],
-        key="frequence",
-    )
 
-col9, col10 = st.columns(2)
-with col9:
-    acces = st.selectbox(
-        "Accès au site",
-        ["", "Libre", "Sur rendez-vous", "Restreint"],
-        key="acces",
-    )
-with col10:
-    priorite = st.selectbox(
-        "Priorité",
-        ["", "Urgent", "Aujourd'hui", "Cette semaine", "Planifiable"],
-        key="priorite",
-    )
+    tentatives = st.text_area("Tentatives déjà faites", height=68, key="tentatives")
 
-tentatives = st.text_area("Tentatives déjà faites", height=80, key="tentatives")
+    col_opt1, col_opt2 = st.columns(2)
+    with col_opt1:
+        acces = st.radio(
+            "Accès au site",
+            options=["", "Libre", "Rdv", "Restreint"],
+            index=0,
+            key="acces",
+        )
+    with col_opt2:
+        priorite = st.radio(
+            "Priorité",
+            options=["", "Aujourd'hui", "Urgent", "Semaine", "Planifiable"],
+            index=0,
+            key="priorite",
+        )
 
-probleme = st.text_area("Problème décrit par le client", height=100, key="probleme")
-infos = st.text_area("Informations utiles / Notes", height=80, key="infos")
+    infos = st.text_area("Informations utiles", height=68, key="infos")
 
 
-# ──────────────────────────────────────────────
-# Génération du résumé structuré
-# ──────────────────────────────────────────────
+
+# ── Génération du résumé ────────────────────────
 def generer_resume() -> str:
-    """Génère le texte structuré prêt à copier-coller dans D-Tools."""
-    lignes = []
+    lines = []
+    
+    # Bloc 1: Appelant
+    if appelant: lines.append(f"Appelant: {appelant}")
+    if telephone: lines.append(f"Téléphone: {telephone}")
+    if client: lines.append(f"Client: {client}")
+    if site: lines.append(f"Site: {site}")
+    if contact: lines.append(f"Contact: {contact}")
+    lines.append("")
 
-    # Bloc appelant
-    lignes.append(f"Appelant: {appelant}")
-    lignes.append(f"Téléphone: {telephone}")
-    if client:
-        lignes.append(f"Client: {client}")
-    if site:
-        lignes.append(f"Site: {site}")
-    if contact:
-        lignes.append(f"Contact: {contact}")
+    # Bloc 2: Qualification
+    if systeme: lines.append(f"Système: {systeme}")
+    if depuis: lines.append(f"Depuis: {depuis}")
+    if tentatives: lines.append(f"Tentatives: {tentatives.strip()}")
+    if acces: lines.append(f"Accès: {acces}")
+    if priorite: lines.append(f"Priorité: {priorite}")
+    
+    if len(lines) > 6:  # S'il y a des infos de qualification on saute une ligne
+        lines.append("")
 
-    # Séparateur
-    lignes.append("")
-
-    # Bloc problème
-    if systeme:
-        lignes.append(f"Système: {systeme}")
-    if zone:
-        lignes.append(f"Zone: {zone}")
-    if depuis:
-        lignes.append(f"Depuis: {depuis}")
-    if frequence:
-        lignes.append(f"Fréquence: {frequence}")
-    if tentatives:
-        lignes.append(f"Tentatives: {tentatives}")
-    if acces:
-        lignes.append(f"Accès: {acces}")
-    if priorite:
-        lignes.append(f"Priorité: {priorite}")
-
-    # Séparateur + problème
+    # Bloc 3: Problème
     if probleme:
-        lignes.append("")
-        lignes.append("Problème:")
-        lignes.append(probleme)
+        lines.append("Problème:")
+        lines.append(probleme.strip())
+        lines.append("")
 
-    # Infos utiles
+    # Bloc 4: Infos utiles
     if infos:
-        lignes.append("")
-        lignes.append("Informations utiles:")
-        lignes.append(infos)
+        lines.append("Informations utiles:")
+        lines.append(infos.strip())
+        lines.append("")
 
-    # Ligne résumé condensé
-    parties_resume = []
+    # Bloc 5: Résumé final condensé (pour copier dans une seule ligne)
+    resume_compact = []
     if probleme:
-        # Première ligne seulement pour le résumé condensé
-        premiere_ligne = probleme.strip().split("\n")[0]
-        parties_resume.append(premiere_ligne)
-    if systeme:
-        parties_resume.append(f"Système: {systeme}")
-    if depuis:
-        parties_resume.append(f"Depuis: {depuis}")
-    if frequence:
-        parties_resume.append(f"Fréquence: {frequence}")
-    if tentatives:
-        parties_resume.append(f"Tentatives: {tentatives}")
-    if acces:
-        parties_resume.append(f"Accès: {acces}")
-    if priorite:
-        parties_resume.append(f"Priorité: {priorite}")
-    if infos:
-        premiere_info = infos.strip().split("\n")[0]
-        parties_resume.append(f"Infos utiles: {premiere_info}")
+        resume_compact.append(probleme.strip().split("\n")[0])
+    if systeme: resume_compact.append(f"Système: {systeme}")
+    if depuis: resume_compact.append(f"Depuis: {depuis}")
+    if tentatives: resume_compact.append(f"Tentatives: {tentatives.strip()}")
+    if acces: resume_compact.append(f"Accès: {acces}")
+    if priorite: resume_compact.append(f"Priorité: {priorite}")
+    if infos: resume_compact.append(f"Infos utiles: {infos.strip().split(chr(10))[0]}")
+    
+    if resume_compact:
+        lines.append("Résumé:")
+        lines.append(" | ".join(resume_compact))
 
-    if parties_resume:
-        lignes.append("")
-        lignes.append("Résumé:")
-        lignes.append(" | ".join(parties_resume))
-
-    return "\n".join(lignes)
-
-
-# ──────────────────────────────────────────────
-# Bouton Générer + Affichage
-# ──────────────────────────────────────────────
-st.subheader("📋 Résumé généré")
+    # Nettoyage des lignes vides consécutives
+    final_text = "\n".join(lines).strip()
+    return final_text.replace("\n\n\n", "\n\n")
 
 resume = generer_resume()
 
-# Affichage du résumé dans une zone lisible
-st.code(resume, language=None)
 
-st.markdown("")
+# ── Action : Résumé et Copie ─────────────────────
+st.markdown("---")
+col_res, col_btn = st.columns([2, 1])
 
-# --- Boutons d'action ---
-col_btn1, col_btn2 = st.columns(2)
+with col_res:
+    st.subheader("📋 Résumé généré")
+    st.code(resume if resume.strip() else "Remplissez les champs pour générer le résumé.", language=None)
 
-with col_btn1:
-    # Bouton copier via JS (clipboard API)
-    # On échappe le texte pour JavaScript
-    resume_escaped = resume.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
-    copy_js = f"""
-    <button onclick="
-        navigator.clipboard.writeText(`{resume_escaped}`).then(function() {{
-            document.getElementById('copy-status').innerHTML = '✅ Copié dans le presse-papiers !';
+with col_btn:
+    st.write("<br><br>", unsafe_allow_html=True)
+    resume_js = resume.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$").replace("'", "\\'")
+
+    copy_html = f"""
+    <button id="copyBtn" onclick="
+        var btn = document.getElementById('copyBtn');
+        navigator.clipboard.writeText(`{resume_js}`).then(function() {{
+            btn.innerText = '✅ Copié !';
+            btn.style.background = '#0f9d58'; /* Vert succès */
             setTimeout(function() {{
-                document.getElementById('copy-status').innerHTML = '';
-            }}, 3000);
+                btn.innerText = '📋 Copier le résumé';
+                btn.style.background = '#ff4b4b'; /* Retour au rouge */
+            }}, 2500);
         }}).catch(function() {{
-            // Fallback pour navigateurs restrictifs
             var ta = document.createElement('textarea');
-            ta.value = `{resume_escaped}`;
+            ta.value = `{resume_js}`;
             document.body.appendChild(ta);
             ta.select();
             document.execCommand('copy');
             document.body.removeChild(ta);
-            document.getElementById('copy-status').innerHTML = '✅ Copié !';
+            btn.innerText = '✅ Copié !';
+            btn.style.background = '#0f9d58';
             setTimeout(function() {{
-                document.getElementById('copy-status').innerHTML = '';
-            }}, 3000);
+                btn.innerText = '📋 Copier le résumé';
+                btn.style.background = '#ff4b4b';
+            }}, 2500);
         }});
     " style="
         width: 100%;
-        padding: 0.75rem 1rem;
-        font-size: 1rem;
-        font-weight: 600;
+        padding: 20px;
+        font-size: 1.3rem;
+        font-weight: 800;
+        border: none;
+        border-radius: 8px;
         cursor: pointer;
-    ">
-        📋 Copier le texte
-    </button>
-    <div id="copy-status" style="text-align:center;margin-top:0.3rem;"></div>
+        background: #ff4b4b; /* Rouge Streamlit par defaut */
+        color: white;
+        transition: 0.2s all;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    ">📋 Copier le résumé</button>
     """
-    st.markdown(copy_js, unsafe_allow_html=True)
-
-with col_btn2:
-    # Bouton télécharger en .txt
-    horodatage = datetime.now().strftime("%Y%m%d_%H%M%S")
-    nom_fichier = f"appel_{horodatage}.txt"
-    st.download_button(
-        label="💾 Télécharger (.txt)",
-        data=resume,
-        file_name=nom_fichier,
-        mime="text/plain",
-    )
-
-
-# ──────────────────────────────────────────────
-# Bouton Réinitialiser
-# ──────────────────────────────────────────────
-st.markdown("")
-if st.button("🔄 Nouvel appel", use_container_width=True):
-    # Nettoyer tous les champs sauf appelant/téléphone (qui viennent de l'URL)
-    for key in ["client", "contact", "site", "systeme", "zone",
-                 "depuis", "frequence", "tentatives", "acces", "priorite",
-                 "probleme", "infos"]:
-        if key in st.session_state:
-            del st.session_state[key]
-    st.rerun()
-
-
-# ──────────────────────────────────────────────
-# Debug : paramètres URL (repliable)
-# ──────────────────────────────────────────────
-with st.expander("🔧 Debug — Paramètres URL reçus"):
-    all_params = dict(st.query_params)
-    if all_params:
-        for k, v in all_params.items():
-            st.markdown(f"**{k}** = `{v}`")
-    else:
-        st.info("Aucun paramètre URL détecté.")
-    st.markdown(f"**Horodatage** : `{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}`")
+    components.html(copy_html, height=100)
+    
+    if st.button("🔄 Nouvel appel", use_container_width=True):
+        for key in ["client", "contact", "site", "probleme", "tentatives", "infos"]:
+            if key in st.session_state:
+                del st.session_state[key]
+        st.rerun()
