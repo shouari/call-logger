@@ -5,8 +5,15 @@ Ouverture automatique par 3CX via ?phone=...&name=...
 Saisie rapide en 2 colonnes sans sections cachées.
 """
 
+import os
+import math
 import streamlit as st
 import streamlit.components.v1 as components
+
+# Initialisation du composant d'autocomplétion OSM
+parent_dir = os.path.dirname(os.path.abspath(__file__))
+component_dir = os.path.join(parent_dir, "osm_component")
+osm_autocomplete = components.declare_component("osm_autocomplete", path=component_dir)
 
 # ── Config ──────────────────────────────────────
 st.set_page_config(
@@ -26,7 +33,23 @@ url_phone = get_param("phone")
 url_name = get_param("name")
 
 # ── En-tête : Titre & Barre de progression ─────
-st.title("📞 Qualification Appel SAV")
+col_titre, col_tarifs = st.columns([2, 1.2])
+
+with col_titre:
+    st.title("📞 Qualification Appel SAV")
+
+with col_tarifs:
+    st.write("<br>", unsafe_allow_html=True) # Petit espace pour aligner
+    st.markdown(
+        """
+        <div style="background-color: #ffebee; color: #c62828; padding: 12px; border-radius: 8px; border: 2px solid #ff5252; font-weight: bold; font-size: 15px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        🚨 TARIFS INTERVENTION<br>
+        <span style="color: #333; font-size: 14px;">Technicien : <b>125$ / h</b><br>
+        Dépl. Min : <b>125$</b> (Zone 1) | <b>250$</b> (Zone 2)</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 # ── Barre de progression au sommet ─────────────
 score = 0
@@ -37,7 +60,11 @@ val_telephone = st.session_state.get("telephone", url_phone)
 if val_appelant or val_telephone: score += 1
 if st.session_state.get("client"): score += 1
 if st.session_state.get("probleme"): score += 1
-if st.session_state.get("systeme"): score += 1
+
+# Check if at least one system is selected
+sys_options = ["Réseau", "Audio", "Vidéo", "Contrôle d'accès", "Alarme", "Éclairage", "Wifi", "Autres"]
+if any(st.session_state.get(f"sys_{s}") for s in sys_options): score += 1
+
 if st.session_state.get("acces"): score += 1
 if st.session_state.get("priorite"): score += 1
 
@@ -64,7 +91,38 @@ with col_gauche:
     with col_cli2:
         contact = st.text_input("Contact sur place", key="contact")
 
-    site = st.text_input("Site / Adresse", key="site")
+    # Remplacement du text_input basique par le composant d'autocomplétion
+    site_retourne = osm_autocomplete(key="site")
+    
+    site_str = ""
+    zone_info = ""
+    
+    if isinstance(site_retourne, dict):
+        site_str = site_retourne.get("address", "")
+        # Calcul de distance si on a les coordonnées
+        lat = site_retourne.get("lat")
+        lon = site_retourne.get("lon")
+        if lat and lon:
+            OFFICE_LAT = 45.5880486
+            OFFICE_LON = -73.7550955
+            R = 6371.0 # Rayon de la terre en km
+            
+            dlat = math.radians(lat - OFFICE_LAT)
+            dlon = math.radians(lon - OFFICE_LON)
+            a = math.sin(dlat / 2)**2 + math.cos(math.radians(OFFICE_LAT)) * math.cos(math.radians(lat)) * math.sin(dlon / 2)**2
+            c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+            distance = R * c
+            
+            if distance < 40:
+                zone_info = "Zone 1"
+                st.success(f"📍 **{zone_info}** (Distance: {distance:.1f} km)")
+            else:
+                zone_info = "Zone 2"
+                st.warning(f"📍 **{zone_info}** (Distance: {distance:.1f} km)")
+    elif isinstance(site_retourne, str):
+        site_str = site_retourne
+
+    site = site_str
 
     st.markdown("---")
     
@@ -75,19 +133,34 @@ with col_gauche:
         placeholder="Décrivez clairement ce qui ne fonctionne pas...",
         key="probleme",
     )
+    
+    tentatives = st.text_area("🔧 Tentatives déjà faites", height=68, key="tentatives")
 
 
 with col_droite:
     st.subheader("⚙️ Qualification de l'intervention")
 
-    # Boutons Système horizontaux au lieu d'un menu
-    systeme = st.radio(
-        "Système concerné",
-        options=["", "Réseau", "Audio", "Vidéo", "Contrôle d'accès", "Alarme", "Éclairage", "Wifi", "Autres"],
-        index=0,
-        horizontal=True,
-        key="systeme",
-    )
+    st.markdown("**📝 Systèmes concernés**")
+    sys_options = ["Réseau", "Audio", "Vidéo", "Contrôle d'accès", "Alarme", "Éclairage", "Wifi", "Autres"]
+    sys_cols = st.columns(3)
+    systemes_selectionnes = []
+    
+    for i, sys_name in enumerate(sys_options):
+        if sys_cols[i % 3].checkbox(sys_name, key=f"sys_{sys_name}"):
+            systemes_selectionnes.append(sys_name)
+    
+    systeme = ", ".join(systemes_selectionnes)
+    
+    st.markdown("**🏷️ Marque du système**")
+    marque_options = ["Control4", "Unifi", "QSC", "Lutron", "Crestron", "SnapAV", "Araknis", "Autre"]
+    marque_cols = st.columns(3)
+    marques_selectionnees = []
+    
+    for i, m_name in enumerate(marque_options):
+        if marque_cols[i % 3].checkbox(m_name, key=f"marque_{m_name}"):
+            marques_selectionnees.append(m_name)
+            
+    marque_str = ", ".join(marques_selectionnees)
 
     depuis = st.radio(
         "Depuis quand",
@@ -96,8 +169,6 @@ with col_droite:
         horizontal=True,
         key="depuis",
     )
-
-    tentatives = st.text_area("Tentatives déjà faites", height=68, key="tentatives")
 
     col_opt1, col_opt2 = st.columns(2)
     with col_opt1:
@@ -129,10 +200,12 @@ def generer_resume() -> str:
     if client: lines.append(f"Client: {client}")
     if site: lines.append(f"Site: {site}")
     if contact: lines.append(f"Contact: {contact}")
+    if zone_info: lines.append(f"Zone facturation: {zone_info}")
     lines.append("")
 
     # Bloc 2: Qualification
-    if systeme: lines.append(f"Système: {systeme}")
+    if systeme: lines.append(f"Systèmes: {systeme}")
+    if marque_str: lines.append(f"Marques: {marque_str}")
     if depuis: lines.append(f"Depuis: {depuis}")
     if tentatives: lines.append(f"Tentatives: {tentatives.strip()}")
     if acces: lines.append(f"Accès: {acces}")
@@ -157,11 +230,13 @@ def generer_resume() -> str:
     resume_compact = []
     if probleme:
         resume_compact.append(probleme.strip().split("\n")[0])
-    if systeme: resume_compact.append(f"Système: {systeme}")
+    if systeme: resume_compact.append(f"Systèmes: {systeme}")
+    if marque_str: resume_compact.append(f"Marques: {marque_str}")
     if depuis: resume_compact.append(f"Depuis: {depuis}")
     if tentatives: resume_compact.append(f"Tentatives: {tentatives.strip()}")
     if acces: resume_compact.append(f"Accès: {acces}")
     if priorite: resume_compact.append(f"Priorité: {priorite}")
+    if zone_info: resume_compact.append(f"Zone: {zone_info}")
     if infos: resume_compact.append(f"Infos utiles: {infos.strip().split(chr(10))[0]}")
     
     if resume_compact:
@@ -228,7 +303,14 @@ with col_btn:
     components.html(copy_html, height=100)
     
     if st.button("🔄 Nouvel appel", use_container_width=True):
-        for key in ["client", "contact", "site", "probleme", "tentatives", "infos"]:
+        # Build list of dynamic keys to clear
+        keys_to_clear = ["client", "contact", "site", "probleme", "tentatives", "infos", "depuis", "acces", "priorite"]
+        for s in sys_options:
+            keys_to_clear.append(f"sys_{s}")
+        for m in marque_options:
+            keys_to_clear.append(f"marque_{m}")
+            
+        for key in keys_to_clear:
             if key in st.session_state:
                 del st.session_state[key]
         st.rerun()

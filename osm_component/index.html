@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    // --- Streamlit Custom Component Boilerplate ---
+    function sendMessageToStreamlitClient(type, data) {
+      const outData = Object.assign({
+        isStreamlitMessage: true,
+        type: type,
+      }, data);
+      window.parent.postMessage(outData, "*");
+    }
+
+    const Streamlit = {
+      setComponentReady: function() {
+        sendMessageToStreamlitClient("streamlit:componentReady", {apiVersion: 1});
+      },
+      setFrameHeight: function(height) {
+        sendMessageToStreamlitClient("streamlit:setFrameHeight", {height: height});
+      },
+      setComponentValue: function(value) {
+        sendMessageToStreamlitClient("streamlit:setComponentValue", {value: value, dataType: "json"});
+      }
+    };
+
+    window.addEventListener("message", function(event) {
+      if (event.data.type === "streamlit:render") {
+        // on ne fait rien de spécial au render
+      }
+    });
+
+    window.addEventListener("load", function() {
+      Streamlit.setComponentReady();
+      Streamlit.setFrameHeight(75); // Hauteur de base (titre + champ) reduite
+    });
+  </script>
+  <style>
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: "Source Sans Pro", sans-serif;
+    }
+    .container {
+        position: relative;
+        width: 100%;
+    }
+    p {
+        margin-top: 0;
+        margin-bottom: 0.5rem;
+        font-size: 14px;
+        color: rgb(49, 51, 63);
+    }
+    input {
+        width: 100%;
+        padding: 0.45rem 0.75rem;
+        font-size: 14px;
+        color: rgb(49, 51, 63);
+        background-color: rgb(240, 242, 246);
+        border: 1px solid transparent;            
+        border-radius: 0.5rem;
+        box-sizing: border-box;
+    }
+    input:focus {
+        outline: none;
+        border-color: #ff4b4b;
+        background-color: white;
+    }
+    .suggestions {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        max-height: 140px;
+        overflow-y: auto;
+        z-index: 1000;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        display: none;
+        margin-top: 4px;
+    }
+    .suggestion-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        font-size: 13px;
+        border-bottom: 1px solid #eee;
+    }
+    .suggestion-item:last-child {
+        border-bottom: none;
+    }
+    .suggestion-item:hover {
+        background-color: #f0f2f6;
+    }
+  </style>
+</head>
+<body>
+    <div class="container">
+        <p>Site / Adresse <sub>(Autocomplétion)</sub></p>
+        <input type="text" id="address-input" placeholder="Commencez à taper une adresse..." autocomplete="off">
+        <div id="suggestions" class="suggestions"></div>
+    </div>
+
+    <script>
+      const input = document.getElementById("address-input");
+      const suggestionsBox = document.getElementById("suggestions");
+      let timeout = null;
+      
+      function adjustHeight() {
+          if (suggestionsBox.style.display === "block") {
+              Streamlit.setFrameHeight(230);
+          } else {
+              Streamlit.setFrameHeight(75);
+          }
+      }
+
+      input.addEventListener("input", function(e) {
+          const query = input.value;
+          // Met à jour Streamlit en temps réel avec un objet incomplet (pas de lat/lon)
+          Streamlit.setComponentValue({address: query, lat: null, lon: null});
+
+          if (query.length < 4) {
+              suggestionsBox.style.display = "none";
+              adjustHeight();
+              return;
+          }
+
+          clearTimeout(timeout);
+          timeout = setTimeout(() => {
+              // OpenStreetMap / Photon API avec priorité (bias) sur le Québec (ex: coords de Montréal)
+              fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=45.50&lon=-73.56&limit=6&lang=fr`)
+              .then(res => res.json())
+              .then(data => {
+                  suggestionsBox.innerHTML = "";
+                  if (data.features && data.features.length > 0) {
+                      data.features.forEach(feature => {
+                          const props = feature.properties;
+                          const div = document.createElement("div");
+                          div.className = "suggestion-item";
+                          
+                          let name = props.name ? props.name + "" : "";
+                          let housenumber = props.housenumber ? " " + props.housenumber : "";
+                          let street = props.street ? ", " + props.street : "";
+                          let city = props.city ? " " + props.city : "";
+                          let postcode = props.postcode ? " " + props.postcode : "";
+                          if (!city && props.state) city = " " + props.state;
+                          
+                          let address = name + housenumber + street + postcode + city;
+                          if(address.startsWith(", ")) address = address.substring(2);
+                          
+                          let lon = feature.geometry ? feature.geometry.coordinates[0] : null;
+                          let lat = feature.geometry ? feature.geometry.coordinates[1] : null;
+                          
+                          div.textContent = address;
+                          div.onclick = function() {
+                              input.value = address;
+                              suggestionsBox.style.display = "none";
+                              adjustHeight();
+                              Streamlit.setComponentValue({address: address, lat: lat, lon: lon});
+                          };
+                          suggestionsBox.appendChild(div);
+                      });
+                      suggestionsBox.style.display = "block";
+                      adjustHeight();
+                  } else {
+                      suggestionsBox.style.display = "none";
+                      adjustHeight();
+                  }
+              });
+          }, 300);
+      });
+      
+      document.addEventListener('click', function(e) {
+          if (e.target !== input) {
+              suggestionsBox.style.display = 'none';
+              adjustHeight();
+          }
+      });
+    </script>
+</body>
+</html>
