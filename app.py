@@ -152,7 +152,7 @@ with col_droite:
     systeme = ", ".join(systemes_selectionnes)
     
     st.markdown("**🏷️ Marque du système**")
-    marque_options = ["Control4", "Unifi", "QSC", "Lutron", "Crestron", "SnapAV", "Araknis", "Autre"]
+    marque_options = ["Control4", "Unifi", "QSC", "Lutron", "Crestron", "Paradox", "CDVI", "Marantz", "Autre"]
     marque_cols = st.columns(3)
     marques_selectionnees = []
     
