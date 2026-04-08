@@ -1,10 +1,9 @@
 # Qualification d'appel SAV
 
-A Streamlit application optimized for wide-screen UI, providing a fast and streamlined form for diagnosing and logging customer service (SAV) calls. It features a dual-column layout for rapid data entry, real-time map address autocompletion via OpenStreetMap, and automated URL parameter-based pre-filling designed for integration with **3CX**.
+A Streamlit application optimized for wide-screen UI, providing a fast and streamlined form for diagnosing and logging customer service (SAV) calls. It features a dual-column layout for rapid data entry and real-time map address autocompletion via OpenStreetMap.
 
 ## Features
 
-- **3CX Integration**: Automatically populates the Caller Name and Phone Number from URL parameters (`?phone=...&name=...`).
 - **Streamlined Diagnosis**: Two-column layout with easy-to-use inputs for systems (Audio, Video, Network, etc.), priority, and issues.
 - **Address Autocomplete (OSM)**: Employs a custom Streamlit component to retrieve addresses and automatically calculates the billing zone distance based on coordinate proximity.
 - **Dynamic Summaries**: Generates a quick text summary of the ticket and allows one-click copying to the clipboard.
@@ -39,20 +38,3 @@ Make sure you have Python 3.9+ installed.
    streamlit run app.py
    ```
    *The app will automatically launch in your default web browser.*
-
-## Production Deployment (e.g., Streamlit Community Cloud)
-
-1. Connect your GitHub repository to Streamlit Community Cloud.
-2. Select your repository, branch, and set the main file path to `app.py`.
-3. Advanced Configuration: 
-   - No extra environment variables required at this stage.
-4. Click **Deploy**. Theme settings will automatically be drawn from `.streamlit/config.toml`.
-
-## Integrations
-
-### 3CX Custom Integration
-Configure your 3CX web application or desktop app to launch an external URL on an incoming call:
-```text
-https://<your-app-domain>/?phone=%CallerNumber%&name=%CallerName%
-```
-*(Variable names should match your 3CX environment capabilities).*
