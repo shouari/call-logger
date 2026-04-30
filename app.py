@@ -79,14 +79,24 @@ progression = min(1.0, score / total_champs_requis)
 st.markdown(f"**Fiche Completée à : {int(progression * 100)}%**")
 st.progress(progression)
 
-# ── Type d'appel ────────────────────────────────
-type_appel = st.radio(
-    "Type d'appel",
-    options=["Nouveau", "Suivi", "Garantie"],
-    index=0,
-    horizontal=True,
-    key="type_appel",
-)
+# ── Type d'appel & Canal ────────────────────────
+col_type, col_canal = st.columns(2)
+with col_type:
+    type_appel = st.radio(
+        "Type d'appel",
+        options=["Nouveau", "Suivi", "Garantie"],
+        index=0,
+        horizontal=True,
+        key="type_appel",
+    )
+with col_canal:
+    canal = st.radio(
+        "Canal d'entrée",
+        options=["📞 Appel", "📧 Courriel"],
+        index=0,
+        horizontal=True,
+        key="canal",
+    )
 
 st.markdown("---")
 
@@ -254,7 +264,7 @@ def generer_resume() -> str:
     lines = []
 
     call_start: datetime = st.session_state["call_start"]
-    lines.append(f"Appel : {call_start.strftime('%d/%m/%Y à %H:%M')} — {type_appel}")
+    lines.append(f"Appel : {call_start.strftime('%d/%m/%Y à %H:%M')} — {type_appel} — {canal}")
     lines.append("")
 
     if appelant:  lines.append(f"Appelant : {appelant}")
@@ -366,7 +376,7 @@ with col_btn:
         keys_to_clear = [
             "client", "contact", "courriel", "site", "probleme", "tentatives",
             "infos", "depuis", "comportement", "impact", "acces", "priorite",
-            "type_appel", "modele", "sys_autres_text", "marque_autre_text",
+            "type_appel", "canal", "modele", "sys_autres_text", "marque_autre_text",
             "call_start",
         ]
         for s in sys_options:
