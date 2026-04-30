@@ -25,7 +25,6 @@ st.set_page_config(
 )
 
 # ── Horodatage de début d'appel ─────────────────
-# Capturé à la première ouverture de la session, pas à chaque rerender
 if "call_start" not in st.session_state:
     st.session_state["call_start"] = datetime.now()
 
@@ -66,9 +65,9 @@ total_champs_requis = 6
 
 val_appelant  = st.session_state.get("appelant", url_name)
 val_telephone = st.session_state.get("telephone", url_phone)
-if val_appelant or val_telephone:              score += 1
-if st.session_state.get("client"):            score += 1
-if st.session_state.get("probleme"):          score += 1
+if val_appelant or val_telephone:     score += 1
+if st.session_state.get("client"):   score += 1
+if st.session_state.get("probleme"): score += 1
 
 sys_options = ["Réseau", "Audio", "Vidéo", "Contrôle d'accès", "Alarme", "Éclairage", "Wifi", "Autres"]
 if any(st.session_state.get(f"sys_{s}") for s in sys_options): score += 1
@@ -102,6 +101,8 @@ with col_gauche:
         appelant  = st.text_input("Nom / Appelant", value=url_name,  key="appelant")
     with col_id2:
         telephone = st.text_input("Téléphone",       value=url_phone, key="telephone")
+
+    courriel = st.text_input("Courriel", placeholder="exemple@domaine.com", key="courriel")
 
     col_cli1, col_cli2 = st.columns(2)
     with col_cli1:
@@ -154,14 +155,28 @@ with col_gauche:
 with col_droite:
     st.subheader("⚙️ Qualification de l'intervention")
 
+    # ── Systèmes concernés ─────────────────────────
     st.markdown("**📝 Systèmes concernés**")
     sys_cols = st.columns(3)
     systemes_selectionnes = []
     for i, sys_name in enumerate(sys_options):
         if sys_cols[i % 3].checkbox(sys_name, key=f"sys_{sys_name}"):
             systemes_selectionnes.append(sys_name)
-    systeme = ", ".join(systemes_selectionnes)
 
+    autres_sys_text = ""
+    if st.session_state.get("sys_Autres"):
+        autres_sys_text = st.text_input(
+            "Précisez le(s) système(s)",
+            placeholder="Ex: Intercom, Store motorisé, Borne EV...",
+            key="sys_autres_text",
+        )
+
+    systeme_final = ", ".join(
+        s if s != "Autres" else (f"Autres ({autres_sys_text})" if autres_sys_text else "Autres")
+        for s in systemes_selectionnes
+    )
+
+    # ── Marques ────────────────────────────────────
     st.markdown("**🏷️ Marque du système**")
     marque_options = ["Control4", "Unifi", "QSC", "Lutron", "Crestron", "Paradox", "CDVI", "Marantz", "Autre"]
     marque_cols = st.columns(3)
@@ -169,14 +184,50 @@ with col_droite:
     for i, m_name in enumerate(marque_options):
         if marque_cols[i % 3].checkbox(m_name, key=f"marque_{m_name}"):
             marques_selectionnees.append(m_name)
-    marque_str = ", ".join(marques_selectionnees)
 
+    autre_marque_text = ""
+    if st.session_state.get("marque_Autre"):
+        autre_marque_text = st.text_input(
+            "Précisez la marque",
+            placeholder="Ex: Bosch, Hikvision, Axis...",
+            key="marque_autre_text",
+        )
+
+    marque_final = ", ".join(
+        m if m != "Autre" else (f"Autre ({autre_marque_text})" if autre_marque_text else "Autre")
+        for m in marques_selectionnees
+    )
+
+    # ── Modèle de l'équipement ─────────────────────
+    modele = st.text_input(
+        "🔩 Modèle de l'équipement",
+        placeholder="Ex: EA-3, US-48-Pro, QSC Core 110f...",
+        key="modele",
+    )
+
+    # ── Depuis quand / Comportement / Impact ───────
     depuis = st.radio(
         "Depuis quand",
         options=["", "Aujourd'hui", "Hier", "Cette semaine", "Inconnu"],
         index=0,
         horizontal=True,
         key="depuis",
+    )
+
+    comportement = st.radio(
+        "Comportement",
+        options=["", "Permanent", "Intermittent", "Inconnu"],
+        index=0,
+        horizontal=True,
+        key="comportement",
+    )
+
+    impact = st.radio(
+        "Impact",
+        options=["", "Un seul appareil", "Plusieurs zones", "Tout le site"],
+        index=0,
+        horizontal=True,
+        key="impact",
     )
 
     col_opt1, col_opt2 = st.columns(2)
@@ -208,18 +259,22 @@ def generer_resume() -> str:
 
     if appelant:  lines.append(f"Appelant : {appelant}")
     if telephone: lines.append(f"Téléphone : {telephone}")
+    if courriel:  lines.append(f"Courriel : {courriel}")
     if client:    lines.append(f"Client : {client}")
     if site:      lines.append(f"Site : {site}")
     if contact:   lines.append(f"Contact : {contact}")
     if zone_info: lines.append(f"Zone facturation : {zone_info}")
     lines.append("")
 
-    if systeme:    lines.append(f"Systèmes : {systeme}")
-    if marque_str: lines.append(f"Marques : {marque_str}")
-    if depuis:     lines.append(f"Depuis : {depuis}")
-    if tentatives: lines.append(f"Tentatives : {tentatives.strip()}")
-    if acces:      lines.append(f"Accès : {acces}")
-    if priorite:   lines.append(f"Priorité : {priorite}")
+    if systeme_final:  lines.append(f"Systèmes : {systeme_final}")
+    if marque_final:   lines.append(f"Marques : {marque_final}")
+    if modele:         lines.append(f"Modèle : {modele}")
+    if depuis:         lines.append(f"Depuis : {depuis}")
+    if comportement:   lines.append(f"Comportement : {comportement}")
+    if impact:         lines.append(f"Impact : {impact}")
+    if tentatives:     lines.append(f"Tentatives : {tentatives.strip()}")
+    if acces:          lines.append(f"Accès : {acces}")
+    if priorite:       lines.append(f"Priorité : {priorite}")
 
     if len(lines) > 8:
         lines.append("")
@@ -235,15 +290,18 @@ def generer_resume() -> str:
         lines.append("")
 
     resume_compact = []
-    if probleme:   resume_compact.append(probleme.strip().split("\n")[0])
-    if systeme:    resume_compact.append(f"Systèmes : {systeme}")
-    if marque_str: resume_compact.append(f"Marques : {marque_str}")
-    if depuis:     resume_compact.append(f"Depuis : {depuis}")
-    if tentatives: resume_compact.append(f"Tentatives : {tentatives.strip()}")
-    if acces:      resume_compact.append(f"Accès : {acces}")
-    if priorite:   resume_compact.append(f"Priorité : {priorite}")
-    if zone_info:  resume_compact.append(f"Zone : {zone_info}")
-    if infos:      resume_compact.append(f"Infos : {infos.strip().split(chr(10))[0]}")
+    if probleme:      resume_compact.append(probleme.strip().split("\n")[0])
+    if systeme_final: resume_compact.append(f"Systèmes : {systeme_final}")
+    if marque_final:  resume_compact.append(f"Marques : {marque_final}")
+    if modele:        resume_compact.append(f"Modèle : {modele}")
+    if depuis:        resume_compact.append(f"Depuis : {depuis}")
+    if comportement:  resume_compact.append(f"Comportement : {comportement}")
+    if impact:        resume_compact.append(f"Impact : {impact}")
+    if tentatives:    resume_compact.append(f"Tentatives : {tentatives.strip()}")
+    if acces:         resume_compact.append(f"Accès : {acces}")
+    if priorite:      resume_compact.append(f"Priorité : {priorite}")
+    if zone_info:     resume_compact.append(f"Zone : {zone_info}")
+    if infos:         resume_compact.append(f"Infos : {infos.strip().split(chr(10))[0]}")
 
     if resume_compact:
         lines.append("Résumé :")
@@ -265,9 +323,8 @@ with col_res:
 with col_btn:
     st.write("<br><br>", unsafe_allow_html=True)
 
-    # Le contenu du résumé est stocké dans un <textarea> caché et lu par JS.
-    # Cela évite toute injection HTML/JS liée aux caractères spéciaux saisis
-    # par l'utilisateur (guillemets, backticks, balises, etc.).
+    # Résumé stocké dans un <textarea> caché — évite toute injection HTML/JS
+    # liée aux caractères spéciaux saisis par l'utilisateur.
     resume_safe = html.escape(resume)
 
     copy_html = f"""
@@ -307,8 +364,9 @@ with col_btn:
 
     if st.button("🔄 Nouvel appel", use_container_width=True):
         keys_to_clear = [
-            "client", "contact", "site", "probleme", "tentatives",
-            "infos", "depuis", "acces", "priorite", "type_appel",
+            "client", "contact", "courriel", "site", "probleme", "tentatives",
+            "infos", "depuis", "comportement", "impact", "acces", "priorite",
+            "type_appel", "modele", "sys_autres_text", "marque_autre_text",
             "call_start",
         ]
         for s in sys_options:
